@@ -32,15 +32,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthChange(async (authUser) => {
+    const unsubscribe = onAuthChange((authUser, authProgress) => {
       setUser(authUser);
-      if (authUser) {
-        const loadedProgress = await loadProgress();
-        setProgress(loadedProgress);
-      } else {
-        const localData = getProgress();
-        setProgress(localData);
-      }
+      setProgress({ ...authProgress });
       setLoading(false);
     });
 
@@ -56,8 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshProgress = async () => {
-    const p = await loadProgress();
-    setProgress(p);
+    if (user) {
+      const p = await loadProgress();
+      setProgress({ ...p });
+    }
   };
 
   return (

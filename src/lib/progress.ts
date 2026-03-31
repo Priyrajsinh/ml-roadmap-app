@@ -5,7 +5,6 @@ import {
   doc, 
   getDoc, 
   setDoc, 
-  updateDoc, 
   serverTimestamp 
 } from 'firebase/firestore';
 import { 
@@ -15,8 +14,6 @@ import {
   type User 
 } from 'firebase/auth';
 import { auth, googleProvider, db } from './firebase';
-
-const STORAGE_KEY = 'ml-roadmap-progress';
 
 export interface ProgressState {
   completedTopics: string[];
@@ -50,22 +47,7 @@ const XP_VALUES = {
 };
 
 let currentUser: User | null = null;
-let localProgress = getLocalProgress();
-
-function getLocalProgress(): ProgressState {
-  if (typeof window === 'undefined') return defaultProgress;
-  
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const progress = JSON.parse(stored);
-      return migrateProgress(progress);
-    }
-  } catch (e) {
-    console.error('Failed to load progress:', e);
-  }
-  return defaultProgress;
-}
+let localProgress: ProgressState = { ...defaultProgress };
 
 function migrateProgress(progress: Partial<ProgressState>): ProgressState {
   return {
@@ -79,17 +61,6 @@ function migrateProgress(progress: Partial<ProgressState>): ProgressState {
     theme: progress.theme || 'dark',
     lastUpdated: progress.lastUpdated || new Date().toISOString(),
   };
-}
-
-function saveLocalProgress(progress: ProgressState): void {
-  if (typeof window === 'undefined') return;
-  
-  try {
-    progress.lastUpdated = new Date().toISOString();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
-  } catch (e) {
-    console.error('Failed to save progress:', e);
-  }
 }
 
 async function saveRemoteProgress(progress: ProgressState): Promise<void> {
@@ -116,12 +87,11 @@ export async function loadProgress(): Promise<ProgressState> {
       if (docSnap.exists()) {
         const remoteData = docSnap.data() as ProgressState;
         localProgress = {
-          ...remoteData,
+          ...migrateProgress(remoteData),
           completedTasks: [...(remoteData.completedTasks || [])],
           completedTopics: [...(remoteData.completedTopics || [])],
           expandedPhases: [...(remoteData.expandedPhases || ['phase-1'])],
         };
-        saveLocalProgress(localProgress);
         return localProgress;
       }
     } catch (e) {
@@ -129,13 +99,7 @@ export async function loadProgress(): Promise<ProgressState> {
     }
   }
   
-  const localProgressData = getLocalProgress();
-  localProgress = {
-    ...localProgressData,
-    completedTasks: [...localProgressData.completedTasks],
-    completedTopics: [...localProgressData.completedTopics],
-    expandedPhases: [...localProgressData.expandedPhases],
-  };
+  localProgress = { ...defaultProgress };
   return localProgress;
 }
 
@@ -145,7 +109,6 @@ export function getProgress(): ProgressState {
 
 export async function saveProgress(progress: ProgressState): Promise<void> {
   localProgress = progress;
-  saveLocalProgress(progress);
   
   if (currentUser) {
     await saveRemoteProgress(progress);
@@ -165,21 +128,22 @@ export async function toggleTask(taskId: string): Promise<{ progress: ProgressSt
     progress.completedTasks.push(taskId);
     xpGained = XP_VALUES.COMPLETE_TASK;
     progress.totalXP += xpGained;
-    console.log('Task completed, XP gained:', xpGained);
   } else {
     progress.completedTasks.splice(index, 1);
     xpGained = -XP_VALUES.COMPLETE_TASK;
     progress.totalXP += xpGained;
-    console.log('Task uncompleted, XP removed:', xpGained);
   }
   
-  console.log('New total XP:', progress.totalXP);
   await saveProgress(progress);
   return { progress, xpGained };
 }
 
 export async function toggleTopic(topicId: string): Promise<{ progress: ProgressState; xpGained: number }> {
-  const progress = { ...localProgress };
+  const progress = { 
+    ...localProgress,
+    completedTasks: [...localProgress.completedTasks],
+    completedTopics: [...localProgress.completedTopics]
+  };
   const index = progress.completedTopics.indexOf(topicId);
   let xpGained = 0;
   
@@ -197,7 +161,10 @@ export async function toggleTopic(topicId: string): Promise<{ progress: Progress
 }
 
 export async function togglePhase(phaseId: string): Promise<ProgressState> {
-  const progress = { ...localProgress };
+  const progress = { 
+    ...localProgress,
+    expandedPhases: [...localProgress.expandedPhases]
+  };
   const index = progress.expandedPhases.indexOf(phaseId);
   
   if (index === -1) {
@@ -350,15 +317,13 @@ export async function resetProgress(): Promise<ProgressState> {
 
 export async function signInWithGoogle(): Promise<User | null> {
   try {
-    console.log('Starting Google sign in...');
     const result = await signInWithPopup(auth, googleProvider);
-    console.log('Sign in successful:', result.user.email);
     currentUser = result.user;
-    await loadProgress();
+    const loadedProgress = await loadProgress();
+    localProgress = loadedProgress;
     return result.user;
   } catch (e) {
     console.error('Sign in failed:', e);
-    alert('Sign in failed. Check console for details.');
     return null;
   }
 }
@@ -366,16 +331,22 @@ export async function signInWithGoogle(): Promise<User | null> {
 export async function logOut(): Promise<void> {
   await signOut(auth);
   currentUser = null;
-  localProgress = getLocalProgress();
+  localProgress = { ...defaultProgress };
 }
 
-export function onAuthChange(callback: (user: User | null) => void): () => void {
+export function onAuthChange(callback: (user: User | null, progress: ProgressState) => void): () => void {
   return onAuthStateChanged(auth, async (user) => {
     currentUser = user;
+    let progress: ProgressState;
+    
     if (user) {
-      await loadProgress();
+      progress = await loadProgress();
+    } else {
+      progress = { ...defaultProgress };
+      localProgress = progress;
     }
-    callback(user);
+    
+    callback(user, progress);
   });
 }
 

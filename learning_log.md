@@ -94,3 +94,52 @@
 ### Status
 - [x] Done
 - Next step: Consider adding test framework (Vitest) for better code quality
+
+---
+
+## Day 2 — Wed Apr 01 2026 — Fix Firebase Progress Sync & Checkbox Issues
+> Project: ml-roadmap-app
+
+### What was done
+- Removed all localStorage usage from src/lib/progress.ts
+- Modified onAuthChange to return progress alongside user
+- Updated AuthContext to use new callback signature with progress
+- Fixed refreshProgress to call loadProgress properly
+- Verified build and lint pass
+
+### Why it was done
+- Tasks weren't updating visually because UI state wasn't syncing with progress changes
+- XP wasn't decreasing on uncheck - the XP calculation was correct but UI didn't reflect changes
+- Not-logged-in users were seeing persisted localStorage data instead of fresh state
+- Needed proper Firestore sync: logged-in = cloud data, not logged-in = fresh start
+
+### How it was done
+- Removed getLocalProgress, saveLocalProgress functions and STORAGE_KEY constant
+- Modified onAuthChange callback to receive (user, progress) instead of just user
+- loadProgress now returns defaultProgress when user is null (no localStorage fallback)
+- AuthContext useEffect now receives progress directly from callback and updates state
+
+### Why this tool / library — not alternatives
+| Tool Used | Why This | Rejected Alternative | Why Not |
+|-----------|----------|---------------------|---------|
+| Firestore | Already integrated, handles multi-user sync automatically | Custom backend | More setup, less maintained |
+| Firebase Auth | Already integrated with Google sign-in | Other auth providers | Simpler for single Google auth |
+| React Context | Already in use for auth state | Redux/Zustand | Overkill for simple auth/progress state |
+
+### Definitions (plain English)
+- **Firestore**: Google's cloud database that syncs data in real-time between app and cloud
+- **onAuthStateChanged**: Firebase listener that fires whenever user signs in/out
+- **Progress state**: Object tracking completed tasks, XP, streak, theme preferences
+
+### Real-world use case
+- Progress syncing across devices - user starts on laptop, continues on phone
+- Different user data isolation - each Google account gets separate Firestore document
+- Used in apps like Duolingo (progress sync), Notion (multi-device sync)
+
+### How to remember it
+- Firebase = "fire" + "base" - like a base camp for your app's data that syncs across devices
+- onAuthStateChanged = "when auth state changes, do this" - event-driven pattern for auth
+
+### Status
+- [x] Done
+- Next step: Test checkbox toggle and XP updates in browser
