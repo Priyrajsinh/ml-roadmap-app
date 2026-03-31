@@ -37,6 +37,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (authUser) {
         const loadedProgress = await loadProgress();
         setProgress(loadedProgress);
+      } else {
+        const localData = getProgress();
+        setProgress(localData);
       }
       setLoading(false);
     });
