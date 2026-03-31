@@ -115,7 +115,12 @@ export async function loadProgress(): Promise<ProgressState> {
       
       if (docSnap.exists()) {
         const remoteData = docSnap.data() as ProgressState;
-        localProgress = { ...remoteData };
+        localProgress = {
+          ...remoteData,
+          completedTasks: [...(remoteData.completedTasks || [])],
+          completedTopics: [...(remoteData.completedTopics || [])],
+          expandedPhases: [...(remoteData.expandedPhases || ['phase-1'])],
+        };
         saveLocalProgress(localProgress);
         return localProgress;
       }
@@ -125,7 +130,12 @@ export async function loadProgress(): Promise<ProgressState> {
   }
   
   const localProgressData = getLocalProgress();
-  localProgress = localProgressData;
+  localProgress = {
+    ...localProgressData,
+    completedTasks: [...localProgressData.completedTasks],
+    completedTopics: [...localProgressData.completedTopics],
+    expandedPhases: [...localProgressData.expandedPhases],
+  };
   return localProgress;
 }
 
@@ -143,7 +153,11 @@ export async function saveProgress(progress: ProgressState): Promise<void> {
 }
 
 export async function toggleTask(taskId: string): Promise<{ progress: ProgressState; xpGained: number }> {
-  const progress = { ...localProgress };
+  const progress = { 
+    ...localProgress, 
+    completedTasks: [...localProgress.completedTasks],
+    completedTopics: [...localProgress.completedTopics]
+  };
   const index = progress.completedTasks.indexOf(taskId);
   let xpGained = 0;
   
