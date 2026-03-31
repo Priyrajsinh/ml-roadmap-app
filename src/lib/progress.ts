@@ -150,11 +150,15 @@ export async function toggleTask(taskId: string): Promise<{ progress: ProgressSt
     progress.completedTasks.push(taskId);
     xpGained = XP_VALUES.COMPLETE_TASK;
     progress.totalXP += xpGained;
+    console.log('Task completed, XP gained:', xpGained);
   } else {
     progress.completedTasks.splice(index, 1);
-    progress.totalXP -= XP_VALUES.COMPLETE_TASK;
+    xpGained = -XP_VALUES.COMPLETE_TASK;
+    progress.totalXP += xpGained;
+    console.log('Task uncompleted, XP removed:', xpGained);
   }
   
+  console.log('New total XP:', progress.totalXP);
   await saveProgress(progress);
   return { progress, xpGained };
 }
@@ -331,12 +335,15 @@ export async function resetProgress(): Promise<ProgressState> {
 
 export async function signInWithGoogle(): Promise<User | null> {
   try {
+    console.log('Starting Google sign in...');
     const result = await signInWithPopup(auth, googleProvider);
+    console.log('Sign in successful:', result.user.email);
     currentUser = result.user;
     await loadProgress();
     return result.user;
   } catch (e) {
     console.error('Sign in failed:', e);
+    alert('Sign in failed. Check console for details.');
     return null;
   }
 }
