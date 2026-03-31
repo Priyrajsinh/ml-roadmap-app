@@ -108,8 +108,6 @@ async function saveRemoteProgress(progress: ProgressState): Promise<void> {
 }
 
 export async function loadProgress(): Promise<ProgressState> {
-  const progress = getLocalProgress();
-  
   if (currentUser) {
     try {
       const docRef = doc(db, 'users', currentUser.uid);
@@ -117,14 +115,17 @@ export async function loadProgress(): Promise<ProgressState> {
       
       if (docSnap.exists()) {
         const remoteData = docSnap.data() as ProgressState;
-        localProgress = { ...progress, ...remoteData };
+        localProgress = { ...remoteData };
         saveLocalProgress(localProgress);
+        return localProgress;
       }
     } catch (e) {
       console.error('Failed to load remote progress:', e);
     }
   }
   
+  const localProgressData = getLocalProgress();
+  localProgress = localProgressData;
   return localProgress;
 }
 
