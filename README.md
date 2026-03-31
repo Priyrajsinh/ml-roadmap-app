@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ML Engineer Roadmap — 12 Months to Production ML
 
-## Getting Started
+A free, self-hosted, daily-use learning tracker for the 12-month ML engineering roadmap.
 
-First, run the development server:
+## What's inside
+- 48 weeks of structured curriculum with specific tasks, not vague goals
+- Real named resources: papers, courses, repos (mostly free)
+- Daily "Today" view — open the app and know exactly what to do
+- Streak tracking and XP system to build a daily habit
+- Beautiful dark UI built to look at every day
+
+## Tech stack
+Next.js 14 · React 18 · TypeScript · Tailwind CSS
+
+## Running locally
 
 ```bash
+git clone https://github.com/YOUR_USERNAME/ml-roadmap-app
+cd ml-roadmap-app
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy your own (free)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Vercel (recommended)**
+1. Fork this repo
+2. Go to vercel.com → New Project → Import your fork
+3. Click Deploy
 
-## Learn More
+**Netlify**
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run build && npm run export
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Upload the `out/` folder to Netlify Drop.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Curriculum overview
 
-## Deploy on Vercel
+| Phase | Months | Topics |
+|-------|--------|--------|
+| 1 — Foundations | 1–2 | Python, NumPy, Linear Algebra, Stats, Calculus |
+| 2 — Classical ML | 3–4 | Sklearn, Supervised, Unsupervised Learning |
+| 3 — Deep Learning | 5–6 | Neural Nets, PyTorch, CNNs |
+| 4 — NLP & Transformers | 7–8 | BERT, fine-tuning, Hugging Face |
+| 5 — MLOps | 9–10 | MLflow, Docker, FastAPI, CI/CD |
+| 6 — Specialization | 11–12 | CV / NLP / Tabular track of your choice |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## License
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT — fork, customize, share freely.
