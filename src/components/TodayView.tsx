@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Flame, Trophy, Check, RotateCcw, ExternalLink, Clock, Calendar } from 'lucide-react';
 import type { Task, Phase } from '@/data/roadmap';
 import { useAuth } from '@/lib/AuthContext';
@@ -40,13 +40,24 @@ interface TodayTaskRowProps {
 function TodayTaskRow({ task, badgeColor }: TodayTaskRowProps) {
   const { isTaskCompleted, toggleTask } = useAuth();
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
+  const syncedCompleted = isTaskCompleted(task.id);
 
-  const completed = optimistic !== null ? optimistic : isTaskCompleted(task.id);
+  useEffect(() => {
+    if (optimistic !== null && optimistic === syncedCompleted) {
+      setOptimistic(null);
+    }
+  }, [optimistic, syncedCompleted]);
+
+  const completed = optimistic !== null ? optimistic : syncedCompleted;
 
   const handleToggle = async () => {
-    setOptimistic(!completed);
-    await toggleTask(task.id, task.difficulty);
-    setOptimistic(null);
+    const next = !completed;
+    setOptimistic(next);
+    const success = await toggleTask(task.id, task.difficulty);
+
+    if (!success) {
+      setOptimistic(null);
+    }
   };
 
   return (

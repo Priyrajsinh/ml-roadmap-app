@@ -47,15 +47,9 @@ export function TimelineView() {
             const colorScheme = COLOR_SCHEMES[phase.colorScheme];
             const isActive = index === currentPhaseIndex;
             const isCompleted = prog.percentage === 100;
-            const isLocked =
-              index > 0 &&
-              getPhaseProgress(phases[index - 1].id, completedTaskIds).percentage < 80;
 
             return (
-              <div
-                key={phase.id}
-                className={`relative flex items-start gap-4 ${isLocked ? 'opacity-50' : ''}`}
-              >
+              <div key={phase.id} className="relative flex items-start gap-4">
                 {/* Phase indicator dot */}
                 <div
                   className={`

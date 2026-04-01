@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
   RotateCcw,
   ExternalLink,
   Clock,
-  Lock,
 } from 'lucide-react';
 import { phases, type Phase, type Topic, type Task } from '@/data/roadmap';
 import { useAuth } from '@/lib/AuthContext';
@@ -49,14 +48,24 @@ interface TaskRowProps {
 function TaskRow({ task, phaseColors }: TaskRowProps) {
   const { isTaskCompleted, toggleTask } = useAuth();
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
+  const syncedCompleted = isTaskCompleted(task.id);
 
-  const completed = optimistic !== null ? optimistic : isTaskCompleted(task.id);
+  useEffect(() => {
+    if (optimistic !== null && optimistic === syncedCompleted) {
+      setOptimistic(null);
+    }
+  }, [optimistic, syncedCompleted]);
+
+  const completed = optimistic !== null ? optimistic : syncedCompleted;
 
   const handleToggle = async () => {
     const next = !completed;
     setOptimistic(next);
-    await toggleTask(task.id, task.difficulty);
-    setOptimistic(null);
+    const success = await toggleTask(task.id, task.difficulty);
+
+    if (!success) {
+      setOptimistic(null);
+    }
   };
 
   return (
@@ -218,37 +227,27 @@ function TopicSection({ topic, phaseColors }: TopicSectionProps) {
 
 interface PhaseSectionProps {
   phase: Phase;
-  isLocked: boolean;
 }
 
-function PhaseSection({ phase, isLocked }: PhaseSectionProps) {
+function PhaseSection({ phase }: PhaseSectionProps) {
   const [expanded, setExpanded] = useState(false);
   const { completedTaskIds } = useAuth();
   const colors = PHASE_COLORS[phase.colorScheme];
   const prog = getPhaseProgress(phase.id, completedTaskIds);
 
   return (
-    <div
-      className={`rounded-xl border overflow-hidden transition-all ${colors.border} ${
-        isLocked ? 'opacity-60' : ''
-      }`}
-    >
+    <div className={`rounded-xl border overflow-hidden transition-all ${colors.border}`}>
       <button
-        onClick={() => !isLocked && setExpanded((e) => !e)}
-        disabled={isLocked}
+        onClick={() => setExpanded((e) => !e)}
         className="w-full p-4 flex items-center justify-between bg-slate-800/60 hover:bg-slate-800 transition-colors"
       >
         <div className="flex items-center gap-3">
           <div
             className={`w-10 h-10 rounded-lg flex items-center justify-center ${colors.light}`}
           >
-            {isLocked ? (
-              <Lock className={`w-5 h-5 ${colors.text}`} />
-            ) : (
-              <span className={`font-bold text-lg ${colors.text}`}>
-                {phase.id.replace('phase-', '')}
-              </span>
-            )}
+            <span className={`font-bold text-lg ${colors.text}`}>
+              {phase.id.replace('phase-', '')}
+            </span>
           </div>
           <div className="text-left">
             <p className="text-xs text-slate-500">{phase.months}</p>
@@ -329,16 +328,9 @@ export function AllTasksView() {
       </div>
 
       {/* Phase accordions */}
-      {phases.map((phase, idx) => {
-        const prevPhasePct =
-          idx > 0
-            ? getPhaseProgress(phases[idx - 1].id, completedTaskIds).percentage
-            : 100;
-        const isLocked = idx > 0 && prevPhasePct < 80;
-        return (
-          <PhaseSection key={phase.id} phase={phase} isLocked={isLocked} />
-        );
-      })}
+      {phases.map((phase) => (
+        <PhaseSection key={phase.id} phase={phase} />
+      ))}
     </div>
   );
 }

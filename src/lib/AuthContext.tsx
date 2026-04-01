@@ -32,7 +32,7 @@ interface AppContextType {
   startDate: string | null;
   progressLoading: boolean;
   // Actions
-  toggleTask: (taskId: string, difficulty: string) => Promise<void>;
+  toggleTask: (taskId: string, difficulty: string) => Promise<boolean>;
   setStartDate: (date: string) => Promise<void>;
   // Toasts
   toasts: ToastItem[];
@@ -70,10 +70,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleTask = useCallback(
-    async (taskId: string, difficulty: string): Promise<void> => {
+    async (taskId: string, difficulty: string): Promise<boolean> => {
       const wasCompleted = completedTasks[taskId] === true;
-      await baseToggle(taskId, difficulty);
-      addToast(wasCompleted ? 'Task reset' : 'Task marked complete \u2713', 'success');
+      const success = await baseToggle(taskId, difficulty);
+
+      if (success) {
+        addToast(
+          wasCompleted ? 'Task reset' : 'Task marked complete \u2713',
+          'success'
+        );
+      } else {
+        addToast('Could not update task progress. Check Firebase config and rules.', 'error');
+      }
+
+      return success;
     },
     [baseToggle, completedTasks, addToast]
   );

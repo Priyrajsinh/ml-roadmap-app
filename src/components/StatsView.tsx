@@ -87,15 +87,12 @@ export function StatsView() {
           <h2 className="text-lg font-semibold text-white">Phase Progress</h2>
         </div>
         <div className="p-4 space-y-4">
-          {phases.map((phase, index) => {
+          {phases.map((phase) => {
             const prog = getPhaseProgress(phase.id, completedTaskIds);
-            const isLocked =
-              index > 0 &&
-              getPhaseProgress(phases[index - 1].id, completedTaskIds).percentage < 80;
             const barColor = COLOR_HEX[phase.colorScheme] ?? '#6366F1';
 
             return (
-              <div key={phase.id} className={isLocked ? 'opacity-50' : ''}>
+              <div key={phase.id}>
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-2">
                     <div

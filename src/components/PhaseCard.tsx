@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -8,9 +8,8 @@ import {
   ExternalLink,
   BookOpen,
   RotateCcw,
-  Lock,
 } from 'lucide-react';
-import { phases, type Phase, type Topic, type Task } from '@/data/roadmap';
+import { type Phase, type Topic, type Task } from '@/data/roadmap';
 import { useAuth } from '@/lib/AuthContext';
 import { getPhaseProgress } from '@/lib/progress';
 
@@ -50,14 +49,24 @@ interface TaskItemProps {
 function TaskItem({ task, colorScheme }: TaskItemProps) {
   const { isTaskCompleted, toggleTask } = useAuth();
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
+  const syncedCompleted = isTaskCompleted(task.id);
 
-  // Use optimistic state for instant feedback, fall back to Firebase-synced state
-  const completed = optimistic !== null ? optimistic : isTaskCompleted(task.id);
+  useEffect(() => {
+    if (optimistic !== null && optimistic === syncedCompleted) {
+      setOptimistic(null);
+    }
+  }, [optimistic, syncedCompleted]);
+
+  const completed = optimistic !== null ? optimistic : syncedCompleted;
 
   const handleToggle = async () => {
-    setOptimistic(!completed); // instant visual update
-    await toggleTask(task.id, task.difficulty); // background Firebase write
-    setOptimistic(null); // let onValue-derived state take over
+    const next = !completed;
+    setOptimistic(next);
+    const success = await toggleTask(task.id, task.difficulty);
+
+    if (!success) {
+      setOptimistic(null);
+    }
   };
 
   return (
@@ -215,36 +224,19 @@ export function PhaseCard({ phase }: { phase: Phase }) {
   const colorScheme = COLOR_SCHEMES[phase.colorScheme];
   const prog = getPhaseProgress(phase.id, completedTaskIds);
 
-  const isPhaseLocked = () => {
-    if (phase.id !== 'phase-6') return false;
-    const phase5 = phases.find((p) => p.id === 'phase-5');
-    if (!phase5) return false;
-    const p5prog = getPhaseProgress('phase-5', completedTaskIds);
-    return p5prog.total > 0 && p5prog.percentage < 80;
-  };
-
-  const handleTogglePhase = () => {
-    if (isPhaseLocked()) return;
-    setIsExpanded((e) => !e);
-  };
-
   return (
     <div className="bg-slate-800/50 rounded-xl border border-white/5 overflow-hidden mb-4 transition-all duration-300">
       <button
-        onClick={handleTogglePhase}
+        onClick={() => setIsExpanded((expanded) => !expanded)}
         className="w-full p-5 flex items-center justify-between hover:bg-slate-800 transition-colors"
       >
         <div className="flex items-center gap-4">
           <div
             className={`w-12 h-12 rounded-xl flex items-center justify-center ${colorScheme.light}`}
           >
-            {isPhaseLocked() ? (
-              <Lock className={`w-6 h-6 ${colorScheme.text}`} />
-            ) : (
-              <span className={`text-2xl font-bold ${colorScheme.text}`}>
-                {phase.id.replace('phase-', '')}
-              </span>
-            )}
+            <span className={`text-2xl font-bold ${colorScheme.text}`}>
+              {phase.id.replace('phase-', '')}
+            </span>
           </div>
           <div className="text-left">
             <p className="text-sm font-medium text-slate-400">{phase.months}</p>
