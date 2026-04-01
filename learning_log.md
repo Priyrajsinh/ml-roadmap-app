@@ -143,3 +143,67 @@
 ### Status
 - [x] Done
 - Next step: Test checkbox toggle and XP updates in browser
+
+---
+
+## Day 2 — 2026-04-01 — Full Firebase RTDB rebuild: fixed checkboxes, two-tab dashboard, XP/streak
+> Project: ml-roadmap-app
+
+### What was done
+- Diagnosed root cause of broken checkboxes: Firestore one-time `getDoc` reads + module-level state not reactive in React
+- Created `src/lib/rtdb.ts` to initialize Firebase Realtime Database from existing auth app
+- Created `src/hooks/useAuth.ts` — pure Firebase Auth hook using `onAuthStateChanged`
+- Created `src/hooks/useProgress.ts` — RTDB hook using `onValue` for real-time task completion sync
+- Created `src/hooks/useTasks.ts` — static roadmap task lookup with `getTodayTasksForDate()`
+- Rewrote `src/lib/AuthContext.tsx` — combined context: auth + RTDB progress + toast system
+- Rewrote `src/lib/progress.ts` — pure utility functions (`getOverallProgress`, `getPhaseProgress`, `getCurrentPhaseIndex`) no Firebase, no state
+- Built `src/components/AllTasksView.tsx` — accordion phases → weeks → tasks with redo button
+- Rewrote `src/components/TodayView.tsx` — start date prompt, celebration/rest-day banners, streak counter
+- Rewrote `src/components/PhaseCard.tsx` — fixed checkbox bug with optimistic UI + `toggleTask` from context
+- Rewrote Header, Sidebar, page.tsx — two-tab layout (Today's Tasks / All Tasks) + Timeline + Stats
+- Updated StatsView, TimelineView, SearchModal to use new context API
+- Build: zero TypeScript errors, zero lint warnings after suppressing two legitimate no-ops
+
+### Why it was done
+- Task checkboxes never toggled because `refreshProgress()` only ran when user was signed in, and `getProgress()` was a module-level variable that React couldn't observe
+- Progress bars never updated because `getOverallProgress()` read from the same stale module variable
+- Firebase writes went to Firestore; reads expected `onValue` semantics — fundamental mismatch
+
+### How it was done
+- Switched persistence layer from Firestore to Firebase Realtime Database (`firebase/database`)
+- `useProgress` hook registers an `onValue` listener on `users/{uid}` — any Firebase write (from ANY client or this session) reactively pushes state into React context
+- All components read from the context `completedTaskIds` array and `isTaskCompleted(id)` function
+- Optimistic UI: components set local `optimistic` state instantly, call `toggleTask` async in background, clear optimistic state when `onValue` confirms Firebase update
+- `toggleTask` writes `users/{uid}/completedTasks/{taskId}: true` to mark complete, or `remove()` to unmark
+- XP: awarded per difficulty — beginner=10, intermediate=20, advanced=30 XP
+- Streak: auto-increments in `updateStreakForUser()` called on every task completion
+
+### Why this tool / library — not alternatives
+| Tool Used | Why This | Rejected Alternative | Why Not |
+|-----------|----------|---------------------|---------|
+| Firebase Realtime Database `onValue` | Push-model: UI updates automatically when DB changes, no polling | Firestore `onSnapshot` | Would require refactoring firebase.ts to add Firestore listener; RTDB is per spec |
+| Optimistic UI (`useState` local flag) | Instant visual feedback; user never waits for network | Wait for Firebase confirmation | Would feel laggy on every checkbox click |
+| `off(userRef, 'value')` cleanup | Correctly removes all value listeners on sign out | `unsubscribe()` from `onValue` | `off()` explicitly named in spec requirement |
+| React Context (AppContext) | Single source of truth; no prop drilling | Redux / Zustand | Overkill for this app size; no external dependency needed |
+| Pure utility functions in progress.ts | Testable, no side effects | Hooks inside progress.ts | Hooks can't be called outside React; functions are more composable |
+
+### Definitions (plain English)
+- **`onValue`**: Firebase RTDB function that calls your callback immediately with current data AND every time it changes — like a live subscription
+- **`off`**: Cancels a Firebase RTDB listener — call it on cleanup to avoid memory leaks
+- **Optimistic UI**: Update the screen immediately as if the action succeeded, then confirm with the server in the background
+- **React Context**: A way to share state across many components without passing props down every level (like a global variable, but reactive)
+- **`useCallback`**: React hook that memoizes a function so it's not recreated on every render — important for stable function references in deps arrays
+
+### Real-world use case
+- `onValue` real-time sync pattern is used in collaborative tools like Figma, Notion, and Google Docs to keep all clients in sync without polling
+- Optimistic UI is used by Twitter/X when you like a tweet — the heart turns red instantly before the server confirms
+
+### How to remember it
+- **`onValue` = a live TV channel**: you tune in and receive every broadcast automatically. `off` = turn off the TV. Without `off`, the TV stays on in the background and wastes power (memory).
+- **Optimistic UI = nodding before you hear the answer**: you visually agree immediately, then check if the answer is actually yes. Revert if it's no.
+
+### Status
+- [x] Done
+- Next step: Deploy to Vercel and test sign-in → toggle task → verify XP increments in Firebase console
+
+---

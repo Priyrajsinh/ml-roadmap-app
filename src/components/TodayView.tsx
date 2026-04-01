@@ -1,317 +1,300 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Check, Clock, ExternalLink, Flame, Trophy, ChevronRight } from 'lucide-react';
-import { phases, type Task, type Phase } from '@/data/roadmap';
-import { 
-  toggleTask as toggleTaskFn, 
-  updateStreak, 
-  getOverallProgress,
-  getCurrentPhaseIndex 
-} from '@/lib/progress';
+import { useState } from 'react';
+import { Flame, Trophy, Check, RotateCcw, ExternalLink, Clock, Calendar } from 'lucide-react';
+import type { Task, Phase } from '@/data/roadmap';
 import { useAuth } from '@/lib/AuthContext';
+import { getTodayTasksForDate, type TaskWithContext } from '@/hooks/useTasks';
+import { getOverallProgress } from '@/lib/progress';
 
-const COLOR_SCHEMES = {
-  blue: { bg: 'bg-blue-500/10', border: 'border-l-blue-500', text: 'text-blue-400', badge: 'bg-blue-500' },
-  purple: { bg: 'bg-purple-500/10', border: 'border-l-purple-500', text: 'text-purple-400', badge: 'bg-purple-500' },
-  teal: { bg: 'bg-teal-500/10', border: 'border-l-teal-500', text: 'text-teal-400', badge: 'bg-teal-500' },
-  green: { bg: 'bg-green-500/10', border: 'border-l-green-500', text: 'text-green-400', badge: 'bg-green-500' },
-  orange: { bg: 'bg-orange-500/10', border: 'border-l-orange-500', text: 'text-orange-400', badge: 'bg-orange-500' },
-  pink: { bg: 'bg-pink-500/10', border: 'border-l-pink-500', text: 'text-pink-400', badge: 'bg-pink-500' },
+const PHASE_BADGE: Record<Phase['colorScheme'], string> = {
+  blue:   'bg-blue-500',
+  purple: 'bg-purple-500',
+  teal:   'bg-teal-500',
+  green:  'bg-green-500',
+  orange: 'bg-orange-500',
+  pink:   'bg-pink-500',
 };
 
 function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
   return 'Good evening';
-}
-
-function getTimeEstimateColor(minutes: number): string {
-  if (minutes < 60) return 'text-green-400';
-  if (minutes <= 90) return 'text-yellow-400';
-  return 'text-red-400';
 }
 
 function formatTime(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
 }
 
-function getTaskTypeIcon(type: string): string {
-  switch (type) {
-    case 'course': return 'COURSE';
-    case 'book': return 'BOOK';
-    case 'paper': return 'PAPER';
-    case 'repo': return 'REPO';
-    case 'video': return 'VIDEO';
-    case 'tool': return 'TOOL';
-    case 'docs': return 'DOCS';
-    case 'blog': return 'BLOG';
-    default: return type.toUpperCase();
-  }
-}
+// ─── Single task row ──────────────────────────────────────────────────────────
 
-interface TaskRowProps {
+interface TodayTaskRowProps {
   task: Task;
-  isCompleted: boolean;
-  onToggle: () => void;
-  colorScheme: typeof COLOR_SCHEMES.blue;
+  badgeColor: string;
 }
 
-function TaskRow({ task, isCompleted, onToggle, colorScheme }: TaskRowProps) {
+function TodayTaskRow({ task, badgeColor }: TodayTaskRowProps) {
+  const { isTaskCompleted, toggleTask } = useAuth();
+  const [optimistic, setOptimistic] = useState<boolean | null>(null);
+
+  const completed = optimistic !== null ? optimistic : isTaskCompleted(task.id);
+
+  const handleToggle = async () => {
+    setOptimistic(!completed);
+    await toggleTask(task.id, task.difficulty);
+    setOptimistic(null);
+  };
+
   return (
-    <div className={`flex items-start gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors ${isCompleted ? 'opacity-60' : ''}`}>
+    <div
+      className={`flex items-start gap-3 p-3 rounded-lg transition-all ${
+        completed ? 'opacity-60 bg-slate-900/30' : 'bg-slate-900/50 hover:bg-slate-900/70'
+      }`}
+    >
       <button
-        onClick={onToggle}
-        className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-          isCompleted 
-            ? 'bg-green-500 border-green-500' 
+        onClick={handleToggle}
+        className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+          completed
+            ? 'bg-green-500 border-green-500'
             : 'border-slate-600 hover:border-green-500'
         }`}
+        aria-label={completed ? 'Mark incomplete' : 'Mark complete'}
       >
-        {isCompleted && <Check className="w-3 h-3 text-white" />}
+        {completed && <Check className="w-3 h-3 text-white" />}
       </button>
-      
+
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`font-medium ${isCompleted ? 'line-through text-slate-400' : 'text-slate-100'}`}>
+          <span
+            className={`text-sm font-medium ${
+              completed ? 'line-through text-slate-500' : 'text-slate-100'
+            }`}
+          >
             {task.title}
           </span>
-          <span className={`text-xs px-2 py-0.5 rounded ${getTimeEstimateColor(task.estimatedMinutes)} bg-black/30`}>
-            <Clock className="w-3 h-3 inline mr-1" />
+          <span className="flex items-center gap-1 text-xs text-slate-500">
+            <Clock className="w-3 h-3" />
             {formatTime(task.estimatedMinutes)}
           </span>
         </div>
-        
+
         {task.resources.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {task.resources.slice(0, 2).map((resource, idx) => (
+          <div className="flex flex-wrap gap-2 mt-1.5">
+            {task.resources.slice(0, 2).map((r, i) => (
               <a
-                key={idx}
-                href={resource.url}
+                key={i}
+                href={r.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors"
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${colorScheme.badge}`} />
-                {resource.title.substring(0, 25)}
+                <span className={`w-1.5 h-1.5 rounded-full ${badgeColor}`} />
+                {r.title.substring(0, 22)}
                 <ExternalLink className="w-3 h-3" />
               </a>
             ))}
           </div>
         )}
       </div>
+
+      {completed && (
+        <button
+          onClick={handleToggle}
+          title="Redo task"
+          className="flex-shrink-0 p-1 rounded hover:bg-slate-700 text-slate-500 hover:text-orange-400 transition-colors"
+        >
+          <RotateCcw className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }
 
+// ─── Main view ────────────────────────────────────────────────────────────────
+
 export function TodayView() {
-  const { progress, refreshProgress } = useAuth();
-  const [loading, setLoading] = useState(false);
-  
-  useEffect(() => {
-    updateStreak().then(() => refreshProgress());
-  }, []);
-  
-  const overallProgress = getOverallProgress();
-  const currentPhaseIndex = getCurrentPhaseIndex();
-  const currentPhase = phases[currentPhaseIndex];
-  const colorScheme = currentPhase ? COLOR_SCHEMES[currentPhase.colorScheme] : COLOR_SCHEMES.blue;
-  
-  const todayTasks: Task[] = [];
-  const upcomingTasks: Task[] = [];
-  
-  if (currentPhase) {
-    for (const topic of currentPhase.topics) {
-      for (const task of topic.tasks) {
-        if (!progress.completedTasks.includes(task.id)) {
-          if (todayTasks.length < 3) {
-            todayTasks.push(task);
-          } else if (upcomingTasks.length < 3) {
-            upcomingTasks.push(task);
-          }
-        }
-      }
-    }
+  const {
+    startDate,
+    streak,
+    totalXP,
+    completedTaskIds,
+    setStartDate,
+    progressLoading,
+  } = useAuth();
+
+  const overall = getOverallProgress(completedTaskIds);
+
+  // Compute today's tasks
+  const todayTasks: TaskWithContext[] = startDate
+    ? getTodayTasksForDate(startDate)
+    : [];
+
+  const isFutureStart =
+    startDate !== null && new Date(startDate) > new Date();
+  const noTasks = todayTasks.length === 0 && startDate !== null && !isFutureStart;
+  const completedCount = todayTasks.filter((t) =>
+    completedTaskIds.includes(t.task.id)
+  ).length;
+  const allDone = todayTasks.length > 0 && completedCount === todayTasks.length;
+
+  // Loading skeleton
+  if (progressLoading) {
+    return (
+      <div className="space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-24 bg-slate-800/50 rounded-xl animate-pulse" />
+        ))}
+      </div>
+    );
   }
-  
-  const completedToday = progress.completedTasks.filter(t => {
-    return todayTasks.some(task => task.id === t);
-  }).length;
-  
-  const totalTodayEstimate = todayTasks.reduce((sum, t) => sum + t.estimatedMinutes, 0);
-  const hasCompletedAllToday = todayTasks.length > 0 && completedToday === todayTasks.length;
-  
-  const handleToggleTask = async (taskId: string) => {
-    setLoading(true);
-    await toggleTaskFn(taskId);
-    await refreshProgress();
-    setLoading(false);
-  };
-  
-  const getPhaseCompletionPercent = (phase: Phase): number => {
-    let total = 0;
-    let completed = 0;
-    phase.topics.forEach(topic => {
-      topic.tasks.forEach(task => {
-        total += 1;
-        if (progress.completedTasks.includes(task.id)) completed += 1;
-      });
-    });
-    return total > 0 ? Math.round((completed / total) * 100) : 0;
-  };
-  
+
   return (
     <div className="space-y-6">
+      {/* Greeting + streak header */}
       <div className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-xl p-6 border border-white/10">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-1">
-              {getGreeting()}!
-            </h1>
-            <p className="text-slate-400">Ready to learn something new today?</p>
+            <h1 className="text-2xl font-bold text-white">{getGreeting()}!</h1>
+            <p className="text-slate-400 mt-0.5">Ready to level up today?</p>
           </div>
-          
-          <div className="flex items-center gap-4">
-            {progress.streak > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 rounded-full">
+          <div className="flex items-center gap-3">
+            {streak > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/20 rounded-full">
                 <Flame className="w-5 h-5 text-orange-400" />
-                <span className="font-bold text-orange-400">{progress.streak}</span>
+                <span className="font-bold text-orange-400">{streak}</span>
                 <span className="text-orange-300 text-sm">day streak</span>
               </div>
             )}
-            
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 rounded-full">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 rounded-full">
               <Trophy className="w-5 h-5 text-purple-400" />
-              <span className="font-bold text-purple-400">{progress.totalXP}</span>
-              <span className="text-purple-300 text-sm">XP</span>
+              <span className="font-bold text-purple-400">{totalXP} XP</span>
             </div>
           </div>
         </div>
-        
-        <div className="mt-4 flex items-center gap-4 text-sm text-slate-400">
-          <span>Phase {currentPhaseIndex + 1}: {currentPhase?.title}</span>
-          <div className="flex-1 max-w-xs h-2 bg-slate-700 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
-              style={{ width: `${getPhaseCompletionPercent(currentPhase!)}%` }}
+
+        {/* Overall progress */}
+        <div className="mt-4">
+          <div className="flex justify-between text-xs text-slate-400 mb-1">
+            <span>Overall roadmap progress</span>
+            <span>{overall.percentage}%</span>
+          </div>
+          <div className="h-2 bg-slate-700/50 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-700"
+              style={{ width: `${overall.percentage}%` }}
             />
           </div>
-          <span>{getPhaseCompletionPercent(currentPhase!)}% done</span>
         </div>
       </div>
-      
-      {hasCompletedAllToday ? (
-        <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 text-center">
-          <Trophy className="w-12 h-12 text-green-400 mx-auto mb-3" />
-          <h2 className="text-xl font-bold text-green-400 mb-2">You&apos;re done for today!</h2>
-          <p className="text-slate-400">Great work! Come back tomorrow to keep your streak going.</p>
+
+      {/* No start date → prompt to set it */}
+      {!startDate && (
+        <div className="bg-slate-800/50 rounded-xl p-8 border border-white/5 text-center">
+          <Calendar className="w-12 h-12 text-indigo-400 mx-auto mb-3" />
+          <h2 className="text-xl font-bold text-white mb-2">Set Your Start Date</h2>
+          <p className="text-slate-400 mb-5">
+            Tell us when you started your ML journey and we&apos;ll show the tasks
+            scheduled for today.
+          </p>
+          <button
+            onClick={() =>
+              setStartDate(new Date().toISOString().split('T')[0])
+            }
+            className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition-colors"
+          >
+            Start Today
+          </button>
         </div>
-      ) : (
-        <>
-          <div className="bg-slate-800/50 rounded-xl border border-white/5 overflow-hidden">
-            <div className="p-4 border-b border-white/5 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-white">TODAY&apos;S FOCUS</h2>
-                <p className="text-sm text-slate-400">~{formatTime(totalTodayEstimate)} estimated</p>
-              </div>
-              <div className="text-sm text-slate-400">
-                {completedToday}/{todayTasks.length} tasks
-              </div>
-            </div>
-            
-            <div className="p-2">
-              {todayTasks.length === 0 ? (
-                <p className="text-slate-400 text-center py-8">No tasks available</p>
-              ) : (
-                todayTasks.map(task => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    isCompleted={progress.completedTasks.includes(task.id)}
-                    onToggle={() => handleToggleTask(task.id)}
-                    colorScheme={colorScheme}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-          
-          {upcomingTasks.length > 0 && (
-            <div className="bg-slate-800/30 rounded-xl border border-white/5 overflow-hidden">
-              <div className="p-4 border-b border-white/5">
-                <h2 className="text-lg font-semibold text-white">UPCOMING</h2>
-              </div>
-              
-              <div className="p-2">
-                {upcomingTasks.map(task => (
-                  <div key={task.id} className="flex items-center gap-3 p-3 opacity-60">
-                    <div className="w-5 h-5 rounded border-2 border-slate-600" />
-                    <div className="flex-1">
-                      <span className="text-slate-300">{task.title}</span>
-                      <span className={`text-xs ml-2 ${getTimeEstimateColor(task.estimatedMinutes)}`}>
-                        {formatTime(task.estimatedMinutes)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
       )}
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-white/5">
-          <h3 className="font-semibold text-white mb-3">YOUR PROGRESS</h3>
-          
-          <div className="space-y-3">
+
+      {/* Future start date */}
+      {isFutureStart && startDate && (
+        <div className="bg-slate-800/30 border border-white/5 rounded-xl p-6 text-center">
+          <div className="text-4xl mb-2">📅</div>
+          <h2 className="text-xl font-bold text-slate-300 mb-1">
+            Journey starts on {startDate}
+          </h2>
+          <p className="text-slate-500">
+            Come back on your start date to see your first tasks!
+          </p>
+        </div>
+      )}
+
+      {/* Rest day / ahead of schedule */}
+      {noTasks && (
+        <div className="bg-slate-800/30 border border-white/5 rounded-xl p-6 text-center">
+          <div className="text-4xl mb-2">😌</div>
+          <h2 className="text-xl font-bold text-slate-300 mb-1">
+            Rest day or you are ahead of schedule!
+          </h2>
+          <p className="text-slate-500">
+            No tasks scheduled for this week. Keep up the great pace!
+          </p>
+        </div>
+      )}
+
+      {/* Celebration banner */}
+      {allDone && (
+        <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 text-center">
+          <div className="text-4xl mb-2">🎉</div>
+          <h2 className="text-xl font-bold text-green-400 mb-1">
+            You crushed today&apos;s tasks!
+          </h2>
+          <p className="text-slate-400">
+            Outstanding work. Come back tomorrow to keep the streak going!
+          </p>
+        </div>
+      )}
+
+      {/* Today's tasks list */}
+      {startDate && !isFutureStart && !noTasks && (
+        <div className="bg-slate-800/50 rounded-xl border border-white/5 overflow-hidden">
+          <div className="p-4 border-b border-white/5 flex items-center justify-between">
             <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-slate-400">Phase {currentPhaseIndex + 1}</span>
-                <span className="text-slate-300">{getPhaseCompletionPercent(currentPhase!)}%</span>
-              </div>
-              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full ${colorScheme.bg.replace('/10', '')} transition-all duration-500`}
-                  style={{ width: `${getPhaseCompletionPercent(currentPhase!)}%`, backgroundColor: colorScheme.text.replace('text-', '') }}
+              <h2 className="text-lg font-semibold text-white">
+                Today&apos;s Tasks
+              </h2>
+              <p className="text-sm text-slate-400">
+                {completedCount}/{todayTasks.length} completed
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-20 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-green-500 rounded-full transition-all duration-500"
+                  style={{
+                    width: `${
+                      todayTasks.length > 0
+                        ? Math.round((completedCount / todayTasks.length) * 100)
+                        : 0
+                    }%`,
+                  }}
                 />
               </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-slate-400">Overall</span>
-                <span className="text-slate-300">{overallProgress.percentage}%</span>
-              </div>
-              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
-                  style={{ width: `${overallProgress.percentage}%` }}
-                />
-              </div>
+              <span className="text-xs text-slate-400">
+                {todayTasks.length > 0
+                  ? Math.round((completedCount / todayTasks.length) * 100)
+                  : 0}
+                %
+              </span>
             </div>
           </div>
-        </div>
-        
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-white/5">
-          <h3 className="font-semibold text-white mb-3">STATS</h3>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">{overallProgress.completed}</div>
-              <div className="text-sm text-slate-400">Tasks Done</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">{overallProgress.total - overallProgress.completed}</div>
-              <div className="text-sm text-slate-400">Tasks Left</div>
-            </div>
+
+          <div className="p-3 space-y-2">
+            {todayTasks.map(({ task, phaseColorScheme }) => (
+              <TodayTaskRow
+                key={task.id}
+                task={task}
+                badgeColor={PHASE_BADGE[phaseColorScheme] ?? 'bg-indigo-500'}
+              />
+            ))}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

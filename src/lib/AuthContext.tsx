@@ -1,72 +1,114 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from 'firebase/auth';
-import { onAuthChange, signInWithGoogle, logOut, loadProgress, getProgress } from '@/lib/progress';
-import type { ProgressState } from '@/lib/progress';
+import {
+  createContext,
+  useContext,
+  useCallback,
+  useState,
+  type ReactNode,
+} from 'react';
+import type { User } from 'firebase/auth';
+import { useAuth as useFirebaseAuth } from '@/hooks/useAuth';
+import { useProgress } from '@/hooks/useProgress';
 
-interface AuthContextType {
-  user: User | null;
-  loading: boolean;
-  progress: ProgressState;
-  signIn: () => Promise<void>;
-  signOut: () => Promise<void>;
-  refreshProgress: () => Promise<void>;
+interface ToastItem {
+  id: string;
+  text: string;
+  type: 'success' | 'error';
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+interface AppContextType {
+  // Auth
+  user: User | null;
+  authLoading: boolean;
+  signIn: () => Promise<void>;
+  signOut: () => Promise<void>;
+  // Progress (reactive — updated by Firebase onValue listener)
+  completedTasks: Record<string, boolean>;
+  completedTaskIds: string[];
+  isTaskCompleted: (taskId: string) => boolean;
+  streak: number;
+  totalXP: number;
+  startDate: string | null;
+  progressLoading: boolean;
+  // Actions
+  toggleTask: (taskId: string, difficulty: string) => Promise<void>;
+  setStartDate: (date: string) => Promise<void>;
+  // Toasts
+  toasts: ToastItem[];
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState<ProgressState>({
-    completedTopics: [],
-    completedTasks: [],
-    streak: 0,
-    lastActiveDate: null,
-    totalXP: 0,
-    phase6Track: null,
-    expandedPhases: ['phase-1'],
-    theme: 'dark',
-    lastUpdated: new Date().toISOString(),
-  });
+  const {
+    user,
+    loading: authLoading,
+    signIn,
+    signOut,
+  } = useFirebaseAuth();
 
-  useEffect(() => {
-    const unsubscribe = onAuthChange((authUser, authProgress) => {
-      setUser(authUser);
-      setProgress({ ...authProgress });
-      setLoading(false);
-    });
+  const {
+    completedTasks,
+    completedTaskIds,
+    startDate,
+    streak,
+    totalXP,
+    loading: progressLoading,
+    toggleTask: baseToggle,
+    setStartDate,
+  } = useProgress(user);
 
-    return () => unsubscribe();
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const addToast = useCallback((text: string, type: 'success' | 'error') => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts((prev) => [...prev, { id, text, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
   }, []);
 
-  const signIn = async () => {
-    await signInWithGoogle();
-  };
+  const toggleTask = useCallback(
+    async (taskId: string, difficulty: string): Promise<void> => {
+      const wasCompleted = completedTasks[taskId] === true;
+      await baseToggle(taskId, difficulty);
+      addToast(wasCompleted ? 'Task reset' : 'Task marked complete \u2713', 'success');
+    },
+    [baseToggle, completedTasks, addToast]
+  );
 
-  const signOut = async () => {
-    await logOut();
-  };
-
-  const refreshProgress = async () => {
-    if (user) {
-      const p = await loadProgress();
-      setProgress({ ...p });
-    }
-  };
+  const isTaskCompleted = useCallback(
+    (taskId: string) => completedTasks[taskId] === true,
+    [completedTasks]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, loading, progress, signIn, signOut, refreshProgress }}>
+    <AppContext.Provider
+      value={{
+        user,
+        authLoading,
+        signIn,
+        signOut,
+        completedTasks,
+        completedTaskIds,
+        isTaskCompleted,
+        streak,
+        totalXP,
+        startDate,
+        progressLoading,
+        toggleTask,
+        setStartDate,
+        toasts,
+      }}
+    >
       {children}
-    </AuthContext.Provider>
+    </AppContext.Provider>
   );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
 }

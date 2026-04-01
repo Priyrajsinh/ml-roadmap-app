@@ -10,9 +10,10 @@
   },
   "dependencies": {
     "autoprefixer": "^10.4.27",
+    "claude": "^0.1.2",
     "firebase": "^12.11.0",
     "lucide-react": "^0.468.0",
-    "next": "14.2.21",
+    "next": "14.2.29",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -21,7 +22,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
-    "eslint-config-next": "14.2.21",
+    "eslint-config-next": "14.2.29",
     "postcss": "^8",
     "tailwindcss": "^3.4.0",
     "typescript": "^5"
