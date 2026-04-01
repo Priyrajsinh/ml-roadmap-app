@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { phases, type Task, type Phase } from '@/data/roadmap';
+import { phases, type Phase, type Task } from '@/data/roadmap';
 
 export interface TaskWithContext {
   task: Task;
@@ -13,8 +13,15 @@ export interface TaskWithContext {
   weekNumber: number;
 }
 
+export interface ActiveWeekTasks {
+  tasks: TaskWithContext[];
+  weekNumber: number | null;
+  roadmapComplete: boolean;
+}
+
 function buildAllTasks(): TaskWithContext[] {
   const result: TaskWithContext[] = [];
+
   for (const phase of phases) {
     for (const topic of phase.topics) {
       for (const task of topic.tasks) {
@@ -30,17 +37,22 @@ function buildAllTasks(): TaskWithContext[] {
       }
     }
   }
+
   return result;
 }
 
-// Computed once at module load — roadmap data is static
 const ALL_TASKS_WITH_CONTEXT = buildAllTasks();
+const WEEK_NUMBERS = [...new Set(ALL_TASKS_WITH_CONTEXT.map((task) => task.weekNumber))]
+  .sort((a, b) => a - b);
 
 export function useTasks() {
   return useMemo(() => ({ allTasksWithContext: ALL_TASKS_WITH_CONTEXT, phases }), []);
 }
 
-export function getTodayTasksForDate(startDate: string): TaskWithContext[] {
+export function getTodayTasksForDate(
+  startDate: string,
+  completedTaskIds: string[]
+): ActiveWeekTasks {
   const start = new Date(startDate);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -50,8 +62,24 @@ export function getTodayTasksForDate(startDate: string): TaskWithContext[] {
     (today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  if (daysSinceStart < 0) return []; // Start date is in the future
+  if (daysSinceStart < 0) {
+    return { tasks: [], weekNumber: null, roadmapComplete: false };
+  }
 
   const currentWeek = Math.floor(daysSinceStart / 7) + 1;
-  return ALL_TASKS_WITH_CONTEXT.filter((t) => t.weekNumber === currentWeek);
+
+  for (const weekNumber of WEEK_NUMBERS) {
+    if (weekNumber < currentWeek) continue;
+
+    const tasks = ALL_TASKS_WITH_CONTEXT.filter((task) => task.weekNumber === weekNumber);
+    const hasIncompleteTask = tasks.some(
+      ({ task }) => !completedTaskIds.includes(task.id)
+    );
+
+    if (hasIncompleteTask) {
+      return { tasks, weekNumber, roadmapComplete: false };
+    }
+  }
+
+  return { tasks: [], weekNumber: null, roadmapComplete: true };
 }
