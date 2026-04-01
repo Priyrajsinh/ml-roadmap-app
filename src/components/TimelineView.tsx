@@ -1,20 +1,8 @@
 'use client';
 
-import { phases } from '@/data/roadmap';
-import { getOverallProgress, getPhaseProgress, getCurrentPhaseIndex } from '@/lib/progress';
+import { phases } from '@/data/roadmap-content';
 import { useAuth } from '@/lib/AuthContext';
-
-const COLOR_SCHEMES: Record<
-  string,
-  { bg: string; text: string; border: string; bar: string }
-> = {
-  blue:   { bg: 'bg-blue-500',   text: 'text-blue-400',   border: 'border-blue-500',   bar: '#3B82F6' },
-  purple: { bg: 'bg-purple-500', text: 'text-purple-400', border: 'border-purple-500', bar: '#8B5CF6' },
-  teal:   { bg: 'bg-teal-500',   text: 'text-teal-400',   border: 'border-teal-500',   bar: '#14B8A6' },
-  green:  { bg: 'bg-green-500',  text: 'text-green-400',  border: 'border-green-500',  bar: '#22C55E' },
-  orange: { bg: 'bg-orange-500', text: 'text-orange-400', border: 'border-orange-500', bar: '#F97316' },
-  pink:   { bg: 'bg-pink-500',   text: 'text-pink-400',   border: 'border-pink-500',   bar: '#EC4899' },
-};
+import { getCurrentPhaseIndex, getPhaseProgress, getOverallProgress } from '@/lib/progress';
 
 export function TimelineView() {
   const { completedTaskIds } = useAuth();
@@ -23,76 +11,85 @@ export function TimelineView() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-xl p-6 border border-white/10">
-        <h1 className="text-2xl font-bold text-white mb-1">Your Timeline</h1>
-        <p className="text-slate-400">12-month journey to become an ML engineer</p>
-        <div className="mt-4 flex items-center gap-3">
-          <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500"
-              style={{ width: `${overall.percentage}%` }}
-            />
-          </div>
-          <span className="text-sm font-bold text-white">{overall.percentage}%</span>
+      <section className="rounded-[32px] border border-white/8 bg-slate-900/70 p-6 md:p-8">
+        <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Journey map</p>
+        <h1 className="mt-3 text-3xl font-semibold text-white">Twelve-month ML roadmap</h1>
+        <p className="mt-2 text-sm text-slate-400">
+          Track phase milestones, capstone outcomes, and where the current momentum sits right now.
+        </p>
+
+        <div className="mt-6 h-2 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-sky-500 to-teal-400"
+            style={{ width: `${overall.percentage}%` }}
+          />
         </div>
-      </div>
+        <p className="mt-2 text-sm text-slate-300">
+          {overall.completed}/{overall.total} tasks complete • {overall.percentage}% overall
+        </p>
+      </section>
 
       <div className="relative">
-        {/* Vertical line */}
-        <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-slate-700" />
+        <div className="absolute left-6 top-0 bottom-0 w-px bg-white/10 md:left-8" />
 
         <div className="space-y-6">
           {phases.map((phase, index) => {
-            const prog = getPhaseProgress(phase.id, completedTaskIds);
-            const colorScheme = COLOR_SCHEMES[phase.colorScheme];
-            const isActive = index === currentPhaseIndex;
-            const isCompleted = prog.percentage === 100;
+            const progress = getPhaseProgress(phase.id, completedTaskIds);
+            const active = index === currentPhaseIndex;
 
             return (
-              <div key={phase.id} className="relative flex items-start gap-4">
-                {/* Phase indicator dot */}
+              <article key={phase.id} className="relative flex gap-4 md:gap-6">
                 <div
-                  className={`
-                    relative z-10 w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0
-                    ${isCompleted ? colorScheme.bg : 'bg-slate-800'}
-                    ${isActive ? `ring-2 ring-offset-2 ring-offset-slate-900 ${colorScheme.border}` : ''}
-                  `}
+                  className={`relative z-10 mt-2 h-12 w-12 rounded-2xl border text-center text-lg font-semibold leading-[3rem] ${
+                    progress.percentage === 100
+                      ? 'border-emerald-400/30 bg-emerald-500/15 text-emerald-300'
+                      : active
+                        ? 'border-indigo-400/30 bg-indigo-500/15 text-indigo-200'
+                        : 'border-white/10 bg-slate-900 text-slate-400'
+                  }`}
                 >
-                  <span className={`text-2xl font-bold ${colorScheme.text}`}>
-                    {isCompleted ? '✓' : index + 1}
-                  </span>
+                  {progress.percentage === 100 ? '✓' : index + 1}
                 </div>
 
-                {/* Phase card */}
-                <div className="flex-1 bg-slate-800/50 rounded-xl border border-white/5 p-5">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="flex-1 rounded-[28px] border border-white/8 bg-slate-900/70 p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                      <h3 className="text-lg font-bold text-white">{phase.title}</h3>
-                      <span className="text-sm text-slate-400">{phase.months}</span>
+                      <p className="text-sm uppercase tracking-[0.24em] text-slate-500">{phase.months}</p>
+                      <h2 className="mt-2 text-2xl font-semibold text-white">{phase.title}</h2>
+                      <p className="mt-2 text-sm text-slate-400">{phase.description}</p>
                     </div>
-                    <span className="text-2xl font-bold text-white">
-                      {prog.percentage}%
-                    </span>
+                    <div className="rounded-2xl border border-white/8 bg-slate-950/60 px-4 py-3 text-right">
+                      <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Phase progress</p>
+                      <p className="mt-1 text-xl font-semibold text-white">{progress.percentage}%</p>
+                      <p className="text-sm text-slate-400">
+                        {progress.completed}/{progress.total} tasks
+                      </p>
+                    </div>
                   </div>
 
-                  <p className="text-sm text-slate-400 mb-3">{phase.description}</p>
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-sky-400"
+                      style={{ width: `${progress.percentage}%` }}
+                    />
+                  </div>
 
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${prog.percentage}%`,
-                          backgroundColor: colorScheme.bar,
-                        }}
-                      />
-                    </div>
-                    <span className="text-xs text-slate-500">
-                      {phase.topics.length} topics
-                    </span>
+                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                    {phase.topics.slice(0, 2).map((topic) => (
+                      <div key={topic.id} className="rounded-2xl border border-white/8 bg-slate-950/60 p-4">
+                        <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Week {topic.weekNumber}</p>
+                        <p className="mt-2 text-sm font-medium text-slate-100">{topic.title}</p>
+                        {topic.milestone && <p className="mt-2 text-sm text-slate-400">{topic.milestone}</p>}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-indigo-500/18 bg-indigo-500/8 p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-indigo-200/80">Capstone outcome</p>
+                    <p className="mt-2 text-sm text-slate-200">{phase.capstoneProject}</p>
                   </div>
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>

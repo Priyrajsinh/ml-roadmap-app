@@ -1,17 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { phases, type Phase, type Task } from '@/data/roadmap';
-
-export interface TaskWithContext {
-  task: Task;
-  phaseId: string;
-  phaseTitle: string;
-  phaseColorScheme: Phase['colorScheme'];
-  topicId: string;
-  topicTitle: string;
-  weekNumber: number;
-}
+import { allTasksWithContext, phases, type TaskWithContext } from '@/data/roadmap-content';
 
 export interface ActiveWeekTasks {
   tasks: TaskWithContext[];
@@ -19,34 +9,12 @@ export interface ActiveWeekTasks {
   roadmapComplete: boolean;
 }
 
-function buildAllTasks(): TaskWithContext[] {
-  const result: TaskWithContext[] = [];
-
-  for (const phase of phases) {
-    for (const topic of phase.topics) {
-      for (const task of topic.tasks) {
-        result.push({
-          task,
-          phaseId: phase.id,
-          phaseTitle: phase.title,
-          phaseColorScheme: phase.colorScheme,
-          topicId: topic.id,
-          topicTitle: topic.title,
-          weekNumber: topic.weekNumber,
-        });
-      }
-    }
-  }
-
-  return result;
-}
-
-const ALL_TASKS_WITH_CONTEXT = buildAllTasks();
-const WEEK_NUMBERS = [...new Set(ALL_TASKS_WITH_CONTEXT.map((task) => task.weekNumber))]
-  .sort((a, b) => a - b);
+const WEEK_NUMBERS = [...new Set(allTasksWithContext.map((entry) => entry.weekNumber))].sort(
+  (left, right) => left - right
+);
 
 export function useTasks() {
-  return useMemo(() => ({ allTasksWithContext: ALL_TASKS_WITH_CONTEXT, phases }), []);
+  return useMemo(() => ({ allTasksWithContext, phases }), []);
 }
 
 export function getTodayTasksForDate(
@@ -71,10 +39,8 @@ export function getTodayTasksForDate(
   for (const weekNumber of WEEK_NUMBERS) {
     if (weekNumber < currentWeek) continue;
 
-    const tasks = ALL_TASKS_WITH_CONTEXT.filter((task) => task.weekNumber === weekNumber);
-    const hasIncompleteTask = tasks.some(
-      ({ task }) => !completedTaskIds.includes(task.id)
-    );
+    const tasks = allTasksWithContext.filter((entry) => entry.weekNumber === weekNumber);
+    const hasIncompleteTask = tasks.some(({ task }) => !completedTaskIds.includes(task.id));
 
     if (hasIncompleteTask) {
       return { tasks, weekNumber, roadmapComplete: false };

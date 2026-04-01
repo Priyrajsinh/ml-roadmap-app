@@ -1,59 +1,122 @@
-export interface Resource {
+export type RoadmapColorScheme =
+  | 'blue'
+  | 'purple'
+  | 'teal'
+  | 'green'
+  | 'orange'
+  | 'pink';
+
+export type TaskDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
+export type TaskStepType =
+  | 'learn'
+  | 'practice'
+  | 'build'
+  | 'review'
+  | 'showcase';
+
+export type ResourceKind =
+  | 'course'
+  | 'book'
+  | 'video'
+  | 'paper'
+  | 'docs'
+  | 'github'
+  | 'blog'
+  | 'tool'
+  | 'template';
+
+export interface TaskResource {
+  id: string;
   title: string;
   url: string;
-  type: 'course' | 'book' | 'video' | 'paper' | 'docs' | 'github' | 'blog';
+  label: string;
+  kind: ResourceKind;
+  appliesToStepId?: string;
+}
+
+export interface TaskStep {
+  id: string;
+  title: string;
+  description?: string;
+  estimatedMinutes?: number;
+  type: TaskStepType;
+  resources: TaskResource[];
+}
+
+export interface TaskDeliverable {
+  id: string;
+  title: string;
+  description: string;
+  outputType: 'notebook' | 'script' | 'readme' | 'repo-folder' | 'doc' | 'artifact';
+}
+
+export interface TaskShowcaseAction {
+  id: string;
+  title: string;
+  repoPath: string;
+  commitMessage: string;
+  readmeUpdate: string;
+  proof: string;
+  publishTarget?: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description: string;
+  goal: string;
+  whyItMatters?: string;
+  estimatedMinutes: number;
+  resources: TaskResource[];
+  tags: string[];
+  difficulty: TaskDifficulty;
+  steps: TaskStep[];
+  deliverables: TaskDeliverable[];
+  githubShowcase: TaskShowcaseAction[];
+  completionMode: 'all-steps';
 }
 
 export interface Topic {
   id: string;
   title: string;
-  description: string;
-  timeEstimate: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  tags: string[];
-  resources: Resource[];
-  subtopics: string[];
+  weekNumber: number;
+  tasks: Task[];
+  milestone?: string;
 }
 
 export interface Phase {
-  id: number;
+  id: string;
   title: string;
-  subtitle: string;
-  weeks: string;
+  months: string;
   description: string;
-  icon: string;
-  color: string;
+  colorScheme: RoadmapColorScheme;
   topics: Topic[];
+  capstoneProject: string;
 }
 
-export interface GermanTimelineEvent {
-  month: string;
-  year: number;
-  event: string;
-  deadline?: boolean;
+export interface GuideChecklistItem {
+  id: string;
+  text: string;
 }
 
-export interface Project {
+export interface GuideSection {
   id: string;
   title: string;
   description: string;
-  domain: string;
-  technologies: string[];
-  features: string[];
-  architecture: string;
-  timeline: string;
+  emphasis?: string;
+  checklist?: GuideChecklistItem[];
+  bullets?: string[];
 }
 
-export interface ParallelTrack {
+export interface SearchableRoadmapItem {
   id: string;
+  type: 'task' | 'step' | 'guide' | 'deliverable' | 'showcase';
   title: string;
-  schedule: { month: string; content: string }[];
-}
-
-export interface University {
-  name: string;
-  program: string;
-  deadline: string;
-  tuition: string;
-  requirements: string[];
+  description: string;
+  url?: string;
+  phaseTitle?: string;
+  topicTitle?: string;
+  taskId?: string;
+  stepId?: string;
 }

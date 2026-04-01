@@ -2,8 +2,8 @@
 
 import {
   createContext,
-  useContext,
   useCallback,
+  useContext,
   useState,
   type ReactNode,
 } from 'react';
@@ -18,23 +18,22 @@ interface ToastItem {
 }
 
 interface AppContextType {
-  // Auth
   user: User | null;
   authLoading: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
-  // Progress (reactive — updated by Firebase onValue listener)
-  completedTasks: Record<string, boolean>;
+  completedItems: Record<string, boolean>;
+  completedItemIds: string[];
   completedTaskIds: string[];
+  isItemCompleted: (itemId: string) => boolean;
   isTaskCompleted: (taskId: string) => boolean;
   streak: number;
   totalXP: number;
   startDate: string | null;
   progressLoading: boolean;
-  // Actions
-  toggleTask: (taskId: string, difficulty: string) => Promise<boolean>;
+  toggleItem: (itemId: string, parentTaskId: string, difficulty: string) => Promise<boolean>;
+  resetTask: (taskId: string, difficulty: string) => Promise<boolean>;
   setStartDate: (date: string) => Promise<void>;
-  // Toasts
   toasts: ToastItem[];
 }
 
@@ -49,13 +48,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } = useFirebaseAuth();
 
   const {
-    completedTasks,
+    completedItems,
+    completedItemIds,
     completedTaskIds,
     startDate,
     streak,
     totalXP,
     loading: progressLoading,
-    toggleTask: baseToggle,
+    toggleItem: baseToggleItem,
+    resetTask: baseResetTask,
     setStartDate,
   } = useProgress(user);
 
@@ -65,32 +66,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const id = Math.random().toString(36).slice(2);
     setToasts((prev) => [...prev, { id, text, type }]);
     setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
+      setToasts((prev) => prev.filter((toast) => toast.id !== id));
     }, 3000);
   }, []);
 
-  const toggleTask = useCallback(
-    async (taskId: string, difficulty: string): Promise<boolean> => {
-      const wasCompleted = completedTasks[taskId] === true;
-      const success = await baseToggle(taskId, difficulty);
+  const toggleItem = useCallback(
+    async (itemId: string, parentTaskId: string, difficulty: string): Promise<boolean> => {
+      const wasCompleted = completedItems[itemId] === true;
+      const success = await baseToggleItem(itemId, parentTaskId, difficulty);
 
       if (success) {
-        addToast(
-          wasCompleted ? 'Task reset' : 'Task marked complete \u2713',
-          'success'
-        );
+        addToast(wasCompleted ? 'Checklist step reset' : 'Checklist step completed', 'success');
       } else {
-        addToast('Could not update task progress. Check Firebase config and rules.', 'error');
+        addToast('Could not update checklist progress. Check Firebase config and rules.', 'error');
       }
 
       return success;
     },
-    [baseToggle, completedTasks, addToast]
+    [addToast, baseToggleItem, completedItems]
+  );
+
+  const resetTask = useCallback(
+    async (taskId: string, difficulty: string): Promise<boolean> => {
+      const success = await baseResetTask(taskId, difficulty);
+
+      if (success) {
+        addToast('Task reset', 'success');
+      } else {
+        addToast('Could not reset task progress. Check Firebase config and rules.', 'error');
+      }
+
+      return success;
+    },
+    [addToast, baseResetTask]
+  );
+
+  const isItemCompleted = useCallback(
+    (itemId: string) => completedItems[itemId] === true,
+    [completedItems]
   );
 
   const isTaskCompleted = useCallback(
-    (taskId: string) => completedTasks[taskId] === true,
-    [completedTasks]
+    (taskId: string) => completedTaskIds.includes(taskId),
+    [completedTaskIds]
   );
 
   return (
@@ -100,14 +118,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authLoading,
         signIn,
         signOut,
-        completedTasks,
+        completedItems,
+        completedItemIds,
         completedTaskIds,
+        isItemCompleted,
         isTaskCompleted,
         streak,
         totalXP,
         startDate,
         progressLoading,
-        toggleTask,
+        toggleItem,
+        resetTask,
         setStartDate,
         toasts,
       }}

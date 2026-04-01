@@ -1,136 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import {
-  Calendar,
-  Check,
-  Clock,
-  ExternalLink,
-  Flame,
-  RotateCcw,
-  Trophy,
-} from 'lucide-react';
-import type { Phase, Task } from '@/data/roadmap';
+import { Calendar, Flame, Target, Trophy } from 'lucide-react';
+import { guideSections } from '@/data/roadmap-guides';
 import { getTodayTasksForDate } from '@/hooks/useTasks';
 import { useAuth } from '@/lib/AuthContext';
-import { getOverallProgress } from '@/lib/progress';
-
-const PHASE_BADGE: Record<Phase['colorScheme'], string> = {
-  blue: 'bg-blue-500',
-  purple: 'bg-purple-500',
-  teal: 'bg-teal-500',
-  green: 'bg-green-500',
-  orange: 'bg-orange-500',
-  pink: 'bg-pink-500',
-};
+import { getOverallProgress, getOverallStepProgress } from '@/lib/progress';
+import { TaskChecklistCard } from '@/components/TaskChecklistCard';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
-
   if (hour < 12) return 'Good morning';
   if (hour < 18) return 'Good afternoon';
   return 'Good evening';
-}
-
-function formatTime(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-}
-
-interface TodayTaskRowProps {
-  task: Task;
-  badgeColor: string;
-}
-
-function TodayTaskRow({ task, badgeColor }: TodayTaskRowProps) {
-  const { isTaskCompleted, toggleTask } = useAuth();
-  const [optimistic, setOptimistic] = useState<boolean | null>(null);
-  const syncedCompleted = isTaskCompleted(task.id);
-
-  useEffect(() => {
-    if (optimistic !== null && optimistic === syncedCompleted) {
-      setOptimistic(null);
-    }
-  }, [optimistic, syncedCompleted]);
-
-  const completed = optimistic !== null ? optimistic : syncedCompleted;
-
-  const handleToggle = async () => {
-    const next = !completed;
-    setOptimistic(next);
-    const success = await toggleTask(task.id, task.difficulty);
-
-    if (!success) {
-      setOptimistic(null);
-    }
-  };
-
-  return (
-    <div
-      className={`flex items-start gap-3 rounded-lg p-3 transition-all ${
-        completed ? 'bg-slate-900/30 opacity-60' : 'bg-slate-900/50 hover:bg-slate-900/70'
-      }`}
-    >
-      <button
-        onClick={handleToggle}
-        className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-all ${
-          completed
-            ? 'border-green-500 bg-green-500'
-            : 'border-slate-600 hover:border-green-500'
-        }`}
-        aria-label={completed ? 'Mark incomplete' : 'Mark complete'}
-      >
-        {completed && <Check className="h-3 w-3 text-white" />}
-      </button>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`text-sm font-medium ${
-              completed ? 'text-slate-500 line-through' : 'text-slate-100'
-            }`}
-          >
-            {task.title}
-          </span>
-          <span className="flex items-center gap-1 text-xs text-slate-500">
-            <Clock className="h-3 w-3" />
-            {formatTime(task.estimatedMinutes)}
-          </span>
-        </div>
-
-        {task.resources.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-2">
-            {task.resources.slice(0, 2).map((resource, index) => (
-              <a
-                key={index}
-                href={resource.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400 transition-colors hover:bg-slate-700"
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${badgeColor}`} />
-                {resource.title.substring(0, 22)}
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {completed && (
-        <button
-          onClick={handleToggle}
-          title="Redo task"
-          className="flex-shrink-0 rounded p-1 text-slate-500 transition-colors hover:bg-slate-700 hover:text-orange-400"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
-      )}
-    </div>
-  );
 }
 
 export function TodayView() {
@@ -139,32 +20,29 @@ export function TodayView() {
     streak,
     totalXP,
     completedTaskIds,
+    completedItemIds,
     setStartDate,
     progressLoading,
   } = useAuth();
 
   const overall = getOverallProgress(completedTaskIds);
+  const stepProgress = getOverallStepProgress(completedItemIds);
   const activeWeek = startDate
     ? getTodayTasksForDate(startDate, completedTaskIds)
     : { tasks: [], weekNumber: null, roadmapComplete: false };
+
   const todayTasks = activeWeek.tasks;
+  const focusTask =
+    todayTasks.find(({ task }) => !completedTaskIds.includes(task.id)) ?? todayTasks[0] ?? null;
+  const supportingTasks = todayTasks.filter(({ task }) => task.id !== focusTask?.task.id);
+  const completedCount = todayTasks.filter(({ task }) => completedTaskIds.includes(task.id)).length;
   const isFutureStart = startDate !== null && new Date(startDate) > new Date();
-  const roadmapComplete =
-    startDate !== null && !isFutureStart && activeWeek.roadmapComplete;
-  const noTasks =
-    todayTasks.length === 0 &&
-    startDate !== null &&
-    !isFutureStart &&
-    !roadmapComplete;
-  const completedCount = todayTasks.filter((item) =>
-    completedTaskIds.includes(item.task.id)
-  ).length;
 
   if (progressLoading) {
     return (
       <div className="space-y-4">
         {[...Array(3)].map((_, index) => (
-          <div key={index} className="h-24 rounded-xl bg-slate-800/50 animate-pulse" />
+          <div key={index} className="h-40 animate-pulse rounded-3xl bg-slate-800/50" />
         ))}
       </div>
     );
@@ -172,136 +50,152 @@ export function TodayView() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-white/10 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white">{getGreeting()}!</h1>
-            <p className="mt-0.5 text-slate-400">Ready to level up today?</p>
+      <section className="overflow-hidden rounded-[32px] border border-white/8 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.25),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(30,41,59,0.92))] p-6 md:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-6">
+          <div className="max-w-3xl">
+            <p className="text-sm uppercase tracking-[0.28em] text-indigo-200/80">Study cockpit</p>
+            <h1 className="mt-3 text-3xl font-semibold text-white md:text-4xl">
+              {getGreeting()}, keep building proof not just progress.
+            </h1>
+            <p className="mt-3 text-base text-slate-300">
+              Today&apos;s workspace shows the exact steps, exact links, expected outputs, and GitHub actions for the
+              current roadmap week.
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            {streak > 0 && (
-              <div className="flex items-center gap-1.5 rounded-full bg-orange-500/20 px-3 py-1.5">
-                <Flame className="h-5 w-5 text-orange-400" />
-                <span className="font-bold text-orange-400">{streak}</span>
-                <span className="text-sm text-orange-300">day streak</span>
-              </div>
-            )}
-            <div className="flex items-center gap-1.5 rounded-full bg-purple-500/20 px-3 py-1.5">
-              <Trophy className="h-5 w-5 text-purple-400" />
-              <span className="font-bold text-purple-400">{totalXP} XP</span>
+
+          <div className="grid min-w-[220px] gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-orange-400/20 bg-orange-500/10 px-4 py-2 text-sm text-orange-200">
+              <Flame className="h-4 w-4" />
+              <span>{streak} day streak</span>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-purple-400/20 bg-purple-500/10 px-4 py-2 text-sm text-purple-200">
+              <Trophy className="h-4 w-4" />
+              <span>{totalXP} XP</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-4">
-          <div className="mb-1 flex justify-between text-xs text-slate-400">
-            <span>Overall roadmap progress</span>
-            <span>{overall.percentage}%</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-700/50">
-            <div
-              className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-700"
-              style={{ width: `${overall.percentage}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {!startDate && (
-        <div className="rounded-xl border border-white/5 bg-slate-800/50 p-8 text-center">
-          <Calendar className="mx-auto mb-3 h-12 w-12 text-indigo-400" />
-          <h2 className="mb-2 text-xl font-bold text-white">Set Your Start Date</h2>
-          <p className="mb-5 text-slate-400">
-            Tell us when you started your ML journey and we&apos;ll show the tasks
-            scheduled for today.
-          </p>
-          <button
-            onClick={() => setStartDate(new Date().toISOString().split('T')[0])}
-            className="rounded-lg bg-indigo-600 px-6 py-2.5 font-medium text-white transition-colors hover:bg-indigo-500"
-          >
-            Start Today
-          </button>
-        </div>
-      )}
-
-      {isFutureStart && startDate && (
-        <div className="rounded-xl border border-white/5 bg-slate-800/30 p-6 text-center">
-          <div className="mb-2 text-4xl">Start</div>
-          <h2 className="mb-1 text-xl font-bold text-slate-300">
-            Journey starts on {startDate}
-          </h2>
-          <p className="text-slate-500">
-            Come back on your start date to see your first tasks!
-          </p>
-        </div>
-      )}
-
-      {noTasks && (
-        <div className="rounded-xl border border-white/5 bg-slate-800/30 p-6 text-center">
-          <div className="mb-2 text-4xl">Rest</div>
-          <h2 className="mb-1 text-xl font-bold text-slate-300">
-            Rest day or you are ahead of schedule!
-          </h2>
-          <p className="text-slate-500">
-            No tasks are available right now. Keep up the great pace!
-          </p>
-        </div>
-      )}
-
-      {roadmapComplete && (
-        <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-6 text-center">
-          <div className="mb-2 text-4xl">Done</div>
-          <h2 className="mb-1 text-xl font-bold text-green-400">
-            You completed the roadmap!
-          </h2>
-          <p className="text-slate-400">
-            Outstanding work. Every week is finished and your progress is fully synced.
-          </p>
-        </div>
-      )}
-
-      {startDate && !isFutureStart && !noTasks && !roadmapComplete && (
-        <div className="overflow-hidden rounded-xl border border-white/5 bg-slate-800/50">
-          <div className="flex items-center justify-between border-b border-white/5 p-4">
-            <div>
-              <h2 className="text-lg font-semibold text-white">Today&apos;s Tasks</h2>
-              <p className="text-sm text-slate-400">
-                Week {activeWeek.weekNumber} • {completedCount}/{todayTasks.length} completed
-              </p>
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-white/8 bg-slate-950/50 p-4">
+            <div className="flex items-center justify-between text-sm text-slate-400">
+              <span>Roadmap tasks</span>
+              <span>{overall.percentage}%</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-700">
-                <div
-                  className="h-full rounded-full bg-green-500 transition-all duration-500"
-                  style={{
-                    width: `${
-                      todayTasks.length > 0
-                        ? Math.round((completedCount / todayTasks.length) * 100)
-                        : 0
-                    }%`,
-                  }}
-                />
-              </div>
-              <span className="text-xs text-slate-400">
-                {todayTasks.length > 0
-                  ? Math.round((completedCount / todayTasks.length) * 100)
-                  : 0}
-                %
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+              <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-sky-400" style={{ width: `${overall.percentage}%` }} />
+            </div>
+            <p className="mt-2 text-sm text-slate-300">
+              {overall.completed}/{overall.total} tasks completed
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/8 bg-slate-950/50 p-4">
+            <div className="flex items-center justify-between text-sm text-slate-400">
+              <span>Checklist steps</span>
+              <span>{stepProgress.stepPercentage}%</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
+              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" style={{ width: `${stepProgress.stepPercentage}%` }} />
+            </div>
+            <p className="mt-2 text-sm text-slate-300">
+              {stepProgress.completedSteps}/{stepProgress.totalSteps} steps complete
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/8 bg-slate-950/50 p-4">
+            <div className="flex items-center justify-between text-sm text-slate-400">
+              <span>Current week</span>
+              <span>{activeWeek.weekNumber ?? '-'}</span>
+            </div>
+            <div className="mt-3 flex items-center gap-3 text-sm text-slate-300">
+              <Target className="h-4 w-4 text-indigo-300" />
+              <span>
+                {todayTasks.length > 0 ? `${completedCount}/${todayTasks.length} tasks complete this week` : 'No active week yet'}
               </span>
             </div>
           </div>
-
-          <div className="space-y-2 p-3">
-            {todayTasks.map(({ task, phaseColorScheme }) => (
-              <TodayTaskRow
-                key={task.id}
-                task={task}
-                badgeColor={PHASE_BADGE[phaseColorScheme] ?? 'bg-indigo-500'}
-              />
-            ))}
-          </div>
         </div>
+      </section>
+
+      {!startDate && (
+        <section className="rounded-[28px] border border-white/8 bg-slate-900/70 p-8 text-center">
+          <Calendar className="mx-auto mb-3 h-10 w-10 text-indigo-300" />
+          <h2 className="text-2xl font-semibold text-white">Set your start date</h2>
+          <p className="mt-2 text-slate-400">
+            Once the journey start date is saved, the app will map you to the correct roadmap week and load the exact checklist.
+          </p>
+          <button
+            onClick={() => void setStartDate(new Date().toISOString().split('T')[0])}
+            className="mt-5 rounded-full bg-indigo-500 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-400"
+          >
+            Start today
+          </button>
+        </section>
       )}
+
+      {isFutureStart && startDate && (
+        <section className="rounded-[28px] border border-white/8 bg-slate-900/70 p-8 text-center">
+          <h2 className="text-2xl font-semibold text-white">Journey starts on {startDate}</h2>
+          <p className="mt-2 text-slate-400">Come back on that date and this workspace will unlock the first guided week.</p>
+        </section>
+      )}
+
+      {startDate && !isFutureStart && focusTask && (
+        <section className="space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Focus task</p>
+              <h2 className="mt-1 text-2xl font-semibold text-white">One clear place to work from</h2>
+            </div>
+            <p className="text-sm text-slate-400">
+              Week {activeWeek.weekNumber} • {completedCount}/{todayTasks.length} tasks complete
+            </p>
+          </div>
+
+          <TaskChecklistCard
+            task={focusTask.task}
+            phaseColorScheme={focusTask.phaseColorScheme}
+            topicTitle={focusTask.topicTitle}
+            weekNumber={focusTask.weekNumber}
+            defaultExpanded
+            emphasize
+          />
+
+          {supportingTasks.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white">Also in this week</h3>
+              {supportingTasks.map(({ task, phaseColorScheme, topicTitle, weekNumber }) => (
+                <TaskChecklistCard
+                  key={task.id}
+                  task={task}
+                  phaseColorScheme={phaseColorScheme}
+                  topicTitle={topicTitle}
+                  weekNumber={weekNumber}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        {guideSections.slice(0, 2).map((section) => (
+          <div key={section.id} className="rounded-[28px] border border-white/8 bg-slate-900/70 p-5">
+            <h3 className="text-lg font-semibold text-white">{section.title}</h3>
+            <p className="mt-2 text-sm text-slate-400">{section.description}</p>
+            {section.emphasis && <p className="mt-3 text-sm text-indigo-200">{section.emphasis}</p>}
+            {section.checklist && (
+              <div className="mt-4 space-y-2">
+                {section.checklist.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-white/8 bg-slate-950/70 p-3 text-sm text-slate-300">
+                    {item.text}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </section>
     </div>
   );
 }

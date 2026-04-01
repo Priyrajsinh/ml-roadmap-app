@@ -1,22 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import {
-  Search as SearchIcon,
-  X,
-  ExternalLink,
-  FileText,
-  Book,
-  Video,
-  Code,
-} from 'lucide-react';
-import { phases, type Task, type Topic } from '@/data/roadmap';
-
-interface SearchResult {
-  type: 'task' | 'topic';
-  item: Task | Topic;
-  phaseTitle: string;
-}
+import { useEffect, useMemo, useState } from 'react';
+import { ExternalLink, Search as SearchIcon, X } from 'lucide-react';
+import { roadmapSearchIndex, taskIndex } from '@/data/roadmap-content';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -25,44 +11,29 @@ interface SearchModalProps {
 
 export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<SearchResult[]>([]);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
+  const results = useMemo(() => {
+    if (!query.trim()) return [];
 
-    const found: SearchResult[] = [];
-    const q = query.toLowerCase();
-
-    for (const phase of phases) {
-      for (const topic of phase.topics) {
-        if (topic.title.toLowerCase().includes(q)) {
-          found.push({ type: 'topic', item: topic, phaseTitle: phase.title });
-        }
-        for (const task of topic.tasks) {
-          if (
-            task.title.toLowerCase().includes(q) ||
-            task.description.toLowerCase().includes(q)
-          ) {
-            found.push({ type: 'task', item: task, phaseTitle: phase.title });
-          }
-        }
-      }
-    }
-
-    setResults(found.slice(0, 10));
+    const normalized = query.toLowerCase();
+    return roadmapSearchIndex
+      .filter((entry) => {
+        const haystack = `${entry.title} ${entry.description} ${entry.phaseTitle ?? ''} ${entry.topicTitle ?? ''}`.toLowerCase();
+        return haystack.includes(normalized);
+      })
+      .slice(0, 12);
   }, [query]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
     };
+
     if (isOpen) {
       document.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
     }
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
@@ -71,114 +42,79 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
   if (!isOpen) return null;
 
-  const getTypeIcon = (resourceType: string) => {
-    switch (resourceType) {
-      case 'course':  return <Book className="w-4 h-4" />;
-      case 'book':    return <FileText className="w-4 h-4" />;
-      case 'video':   return <Video className="w-4 h-4" />;
-      case 'repo':    return <Code className="w-4 h-4" />;
-      case 'paper':   return <FileText className="w-4 h-4" />;
-      default:        return <ExternalLink className="w-4 h-4" />;
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4">
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+    <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-20">
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative w-full max-w-2xl bg-slate-800 rounded-xl border border-white/10 shadow-2xl overflow-hidden">
-        {/* Search input */}
-        <div className="flex items-center gap-3 p-4 border-b border-white/10">
-          <SearchIcon className="w-5 h-5 text-slate-400 flex-shrink-0" />
+      <div className="relative w-full max-w-3xl overflow-hidden rounded-[28px] border border-white/10 bg-slate-900 shadow-2xl">
+        <div className="flex items-center gap-3 border-b border-white/8 px-5 py-4">
+          <SearchIcon className="h-5 w-5 text-slate-400" />
           <input
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search tasks, topics, resources..."
-            className="flex-1 bg-transparent text-white placeholder-slate-500 outline-none"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search tasks, checklist steps, deliverables, or GitHub actions"
+            className="flex-1 bg-transparent text-white outline-none placeholder:text-slate-500"
             autoFocus
           />
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-slate-700 rounded transition-colors"
-          >
-            <X className="w-5 h-5 text-slate-400" />
+          <button onClick={onClose} className="rounded-full p-2 transition hover:bg-slate-800">
+            <X className="h-4 w-4 text-slate-400" />
           </button>
         </div>
 
-        {/* Results */}
-        <div className="max-h-96 overflow-y-auto">
-          {results.length === 0 && query && (
-            <div className="p-8 text-center text-slate-400">
-              No results found for &quot;{query}&quot;
-            </div>
-          )}
-          {results.length === 0 && !query && (
-            <div className="p-8 text-center text-slate-400">
-              Start typing to search the roadmap...
+        <div className="max-h-[70vh] overflow-y-auto">
+          {!query && (
+            <div className="p-8 text-center text-sm text-slate-400">
+              Search across the roadmap, step-level checklist items, deliverables, and GitHub showcase guidance.
             </div>
           )}
 
-          {results.map((result, index) => (
-            <div
-              key={index}
-              className="p-4 hover:bg-slate-700/50 border-b border-white/5"
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <span
-                  className={`text-xs px-2 py-0.5 rounded ${
-                    result.type === 'task'
-                      ? 'bg-purple-500/20 text-purple-400'
-                      : 'bg-blue-500/20 text-blue-400'
-                  }`}
-                >
-                  {result.type === 'task' ? 'Task' : 'Topic'}
-                </span>
-                <span className="text-xs text-slate-500">{result.phaseTitle}</span>
-              </div>
+          {query && results.length === 0 && (
+            <div className="p-8 text-center text-sm text-slate-400">
+              No roadmap content matched &quot;{query}&quot;.
+            </div>
+          )}
 
-              <h4 className="font-medium text-white">{result.item.title}</h4>
+          {results.map((result) => {
+            const parentTask = result.taskId ? taskIndex[result.taskId]?.task : null;
 
-              {'description' in result.item && result.item.description && (
-                <p className="text-sm text-slate-400 mt-1 line-clamp-2">
-                  {result.item.description}
-                </p>
-              )}
+            return (
+              <div key={result.id} className="border-b border-white/6 px-5 py-4">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span className="rounded-full border border-white/10 px-2 py-1 uppercase tracking-[0.16em] text-slate-400">
+                    {result.type}
+                  </span>
+                  {result.phaseTitle && <span>{result.phaseTitle}</span>}
+                  {result.topicTitle && <span>{result.topicTitle}</span>}
+                </div>
 
-              {'resources' in result.item &&
-                result.item.resources &&
-                result.item.resources.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {result.item.resources.slice(0, 3).map((r, i) => (
+                <h4 className="mt-2 text-base font-medium text-white">{result.title}</h4>
+                <p className="mt-1 text-sm text-slate-400">{result.description}</p>
+
+                {parentTask && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {parentTask.resources.slice(0, 3).map((resource) => (
                       <a
-                        key={i}
-                        href={r.url}
+                        key={resource.id}
+                        href={resource.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors"
+                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950 px-3 py-1.5 text-xs text-slate-300 transition hover:border-indigo-400/40"
                       >
-                        {getTypeIcon(r.type)}
-                        {r.title.substring(0, 20)}
-                        <ExternalLink className="w-3 h-3" />
+                        <span>{resource.label}</span>
+                        <ExternalLink className="h-3 w-3" />
                       </a>
                     ))}
                   </div>
                 )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
 
-        {/* Footer */}
-        <div className="p-3 border-t border-white/10 bg-slate-900 flex items-center justify-between text-xs text-slate-500">
-          <span>{results.length} result{results.length !== 1 ? 's' : ''}</span>
-          <div className="flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 bg-slate-700 rounded">Cmd</kbd>
-            <kbd className="px-1.5 py-0.5 bg-slate-700 rounded">K</kbd>
-            <span className="ml-1">to open</span>
-          </div>
+        <div className="flex items-center justify-between border-t border-white/8 px-5 py-3 text-xs text-slate-500">
+          <span>{results.length} result{results.length === 1 ? '' : 's'}</span>
+          <span>Search covers tasks, steps, deliverables, showcase guidance, and guide sections.</span>
         </div>
       </div>
     </div>

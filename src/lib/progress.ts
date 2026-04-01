@@ -1,55 +1,97 @@
-// Pure utility functions for progress calculations.
-// No Firebase, no React state — all functions take completedTaskIds as a parameter.
-import { phases } from '@/data/roadmap';
+import { phases } from '@/data/roadmap-content';
 
-export function getOverallProgress(completedTaskIds: string[]): {
+export interface ProgressSummary {
   completed: number;
   total: number;
   percentage: number;
-} {
-  let total = 0;
-  for (const phase of phases) {
-    for (const topic of phase.topics) {
-      total += topic.tasks.length;
-    }
-  }
-  const completed = completedTaskIds.length;
+}
+
+export interface StepProgressSummary extends ProgressSummary {
+  completedSteps: number;
+  totalSteps: number;
+  stepPercentage: number;
+}
+
+function calculateTaskProgress(taskIds: string[], total: number): ProgressSummary {
   return {
-    completed,
+    completed: taskIds.length,
     total,
-    percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+    percentage: total > 0 ? Math.round((taskIds.length / total) * 100) : 0,
+  };
+}
+
+export function getOverallProgress(completedTaskIds: string[]): ProgressSummary {
+  const total = phases.reduce(
+    (taskTotal, phase) => taskTotal + phase.topics.reduce((sum, topic) => sum + topic.tasks.length, 0),
+    0
+  );
+
+  return calculateTaskProgress(completedTaskIds, total);
+}
+
+export function getOverallStepProgress(completedItemIds: string[]): StepProgressSummary {
+  const totalSteps = phases.reduce(
+    (stepTotal, phase) =>
+      stepTotal +
+      phase.topics.reduce(
+        (topicStepTotal, topic) =>
+          topicStepTotal + topic.tasks.reduce((taskStepTotal, task) => taskStepTotal + task.steps.length, 0),
+        0
+      ),
+    0
+  );
+
+  const completedTasks = phases.flatMap((phase) =>
+    phase.topics.flatMap((topic) =>
+      topic.tasks.filter((task) =>
+        task.steps.every((step) => completedItemIds.includes(step.id))
+      )
+    )
+  ).length;
+
+  return {
+    ...getOverallProgress(
+      phases.flatMap((phase) =>
+        phase.topics.flatMap((topic) =>
+          topic.tasks
+            .filter((task) => task.steps.every((step) => completedItemIds.includes(step.id)))
+            .map((task) => task.id)
+        )
+      )
+    ),
+    completedSteps: completedItemIds.length,
+    totalSteps,
+    stepPercentage: totalSteps > 0 ? Math.round((completedItemIds.length / totalSteps) * 100) : 0,
+    completed: completedTasks,
   };
 }
 
 export function getPhaseProgress(
   phaseId: string,
   completedTaskIds: string[]
-): { completed: number; total: number; percentage: number } {
-  const phase = phases.find((p) => p.id === phaseId);
+): ProgressSummary {
+  const phase = phases.find((entry) => entry.id === phaseId);
   if (!phase) return { completed: 0, total: 0, percentage: 0 };
 
-  let total = 0;
-  let completed = 0;
-  for (const topic of phase.topics) {
-    for (const task of topic.tasks) {
-      total += 1;
-      if (completedTaskIds.includes(task.id)) completed += 1;
-    }
-  }
+  const taskIds = phase.topics.flatMap((topic) => topic.tasks.map((task) => task.id));
+  const completed = taskIds.filter((id) => completedTaskIds.includes(id)).length;
+
   return {
     completed,
-    total,
-    percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+    total: taskIds.length,
+    percentage: taskIds.length > 0 ? Math.round((completed / taskIds.length) * 100) : 0,
   };
 }
 
 export function getCurrentPhaseIndex(completedTaskIds: string[]): number {
-  for (let i = phases.length - 1; i >= 0; i--) {
-    const phase = phases[i];
+  for (let index = phases.length - 1; index >= 0; index -= 1) {
+    const phase = phases[index];
     const hasCompleted = phase.topics.some((topic) =>
       topic.tasks.some((task) => completedTaskIds.includes(task.id))
     );
-    if (hasCompleted) return i;
+
+    if (hasCompleted) return index;
   }
+
   return 0;
 }
